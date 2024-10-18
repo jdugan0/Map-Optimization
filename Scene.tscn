@@ -5,9 +5,12 @@
 [node name="Node2D" type="Node2D"]
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
 script = ExtResource("1_lpsga")
-pixelHeight = 400
-pixelWidth = 400
-pts = 10
+pixelHeight = 200
+pixelWidth = 200
+pts = 6
+rand = 0.5
 
 [node name="Camera2D" type="Camera2D" parent="."]
+zoom = Vector2(5, 5)
