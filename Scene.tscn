@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3 uid="uid://s4jtvlo5xngn"]
+
+[ext_resource type="Script" path="res://Scripts/Renderer.cs" id="1_lpsga"]
+
+[node name="Node2D" type="Node2D"]
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+script = ExtResource("1_lpsga")
+pixelHeight = 400
+pixelWidth = 400
+pts = 10
+
+[node name="Camera2D" type="Camera2D" parent="."]
