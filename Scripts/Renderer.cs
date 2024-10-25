@@ -76,14 +76,18 @@ public partial class Renderer : Sprite2D
 		UpdateCounts();
 		Render();
 	}
-	public float ScoreCount(){
+	public float ScoreCount()
+	{
 		float min = float.MaxValue;
 		float max = float.MinValue;
-		foreach (float f in districtCounts){
-			if (f < min){
+		foreach (float f in districtCounts)
+		{
+			if (f < min)
+			{
 				min = f;
 			}
-			if(f > max){
+			if (f > max)
+			{
 				max = f;
 			}
 		}
@@ -98,9 +102,9 @@ public partial class Renderer : Sprite2D
 		ulong time2 = Time.GetTicksUsec();
 		Render();
 		ulong time3 = Time.GetTicksUsec();
-		averageUpdate +=(time2 - time1);
+		averageUpdate += (time2 - time1);
 		averageRender += (time3 - time2);
-		count ++;
+		count++;
 		GD.Print("Update Time: " + (time2 - time1));
 		GD.Print("Render Time: " + (time3 - time2));
 	}
@@ -133,8 +137,53 @@ public partial class Renderer : Sprite2D
 		}
 		return total.Count;
 	}
-	public float CalculateScore(){
-		return ScoreCount();
+	public float CalculateScore()
+	{
+		return ScoreCount() + ScoreCOM() * 5 + ScoreBorder() * 8;
+	}
+	public float ScoreCOM()
+	{
+		float score = 0;
+
+
+		float[] sumX = new float[pts];
+		float[] sumY = new float[pts];
+		int[] count = new int[pts];
+
+
+		foreach (var pixel in pixels)
+		{
+			int district = pixel.district;
+			sumX[district] += pixel.pos.X;
+			sumY[district] += pixel.pos.Y;
+			count[district]++;
+		}
+
+
+		Parallel.For(0, pts, district =>
+		{
+			if (count[district] == 0) return;  // Skip empty districts
+
+
+			Vector2 com = new Vector2(sumX[district] / count[district], sumY[district] / count[district]);
+
+			float districtSum = 0;
+			foreach (var pixel in pixels)
+			{
+				if (pixel.district == district)
+				{
+					districtSum += com.DistanceTo(pixel.pos);
+				}
+			}
+
+
+			lock (this)
+			{
+				score += districtSum / count[district];
+			}
+		});
+
+		return score;
 	}
 	public void Update()
 	{
@@ -198,17 +247,22 @@ public partial class Renderer : Sprite2D
 		}
 		// GD.Print(final);
 	}
-	public float ScoreBorder(){
+	public float ScoreBorder()
+	{
 		float score = 0;
-		foreach(Pixel p in pixels){
-			foreach (Pixel p1 in p.boundary){
-				if (p1.district != p.district){
+		foreach (Pixel p in pixels)
+		{
+			foreach (Pixel p1 in p.boundary)
+			{
+				if (p1.district != p.district)
+				{
 					score += 1;
 				}
 			}
 		}
 		return score;
 	}
+
 	public void Render()
 	{
 		Image image = Image.Create(pixelWidth, pixelHeight, false, Image.Format.Rgba8);
@@ -225,21 +279,25 @@ public partial class Renderer : Sprite2D
 		texture.SetImage(image);
 		Texture = texture;
 	}
-	public void UpdateCounts(){
-		foreach (Pixel p in pixels){
+	public void UpdateCounts()
+	{
+		foreach (Pixel p in pixels)
+		{
 			districtCounts[p.district]++;
 		}
 		GD.Print(districtCounts);
 	}
-	public void ChangeDistrict(Pixel p){
+	public void ChangeDistrict(Pixel p)
+	{
 		districtCounts[p.district]--;
 		p.district = p.boundDistrict;
 		districtCounts[p.district]++;
 	}
-	public void RevertDistrict(Pixel p, int district){
+	public void RevertDistrict(Pixel p, int district)
+	{
 		districtCounts[p.district]--;
 		districtCounts[district]++;
-		p.district=district;
+		p.district = district;
 	}
 	public List<Pixel> findBoundary()
 	{
