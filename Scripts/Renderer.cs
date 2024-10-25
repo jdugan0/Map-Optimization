@@ -14,7 +14,11 @@ public partial class Renderer : Sprite2D
 	Gradient gradient = new Gradient();
 	public List<Pixel> pixels = new List<Pixel>();
 	Dictionary<Vector2I, Pixel> pixelGrid = new Dictionary<Vector2I, Pixel>();
+	ulong averageUpdate = 0;
+	ulong averageRender = 0;
+	ulong count;
 	[Export] public float rand;
+	public float[] districtCounts;
 	Vector2I[] neighborOffsets = {
 			new Vector2I(-1, -1), new Vector2I(0, -1), new Vector2I(1, -1),
 			new Vector2I(-1, 0), /* current pixel */    new Vector2I(1, 0),
@@ -22,6 +26,7 @@ public partial class Renderer : Sprite2D
 		};
 	public override void _Ready()
 	{
+		districtCounts = new float[pts];
 		List<Vector2> points = new List<Vector2>();
 		for (int i = 0; i < pts; i++)
 		{
@@ -68,95 +73,141 @@ public partial class Renderer : Sprite2D
 			}
 		}
 		// GD.Print(pixels.Count);
+		UpdateCounts();
 		Render();
+	}
+	public float ScoreCount(){
+		float min = float.MaxValue;
+		float max = float.MinValue;
+		foreach (float f in districtCounts){
+			if (f < min){
+				min = f;
+			}
+			if(f > max){
+				max = f;
+			}
+		}
+		return max - min;
 	}
 
 	// Called every frame. 'delta' is the elapsed time since the previous frame.
 	public override void _Process(double delta)
 	{
+		ulong time1 = Time.GetTicksUsec();
 		Update();
+		ulong time2 = Time.GetTicksUsec();
 		Render();
+		ulong time3 = Time.GetTicksUsec();
+		averageUpdate +=(time2 - time1);
+		averageRender += (time3 - time2);
+		count ++;
+		GD.Print("Update Time: " + (time2 - time1));
+		GD.Print("Render Time: " + (time3 - time2));
 	}
+	private int DFS(Pixel p, Pixel init)
+	{
+		HashSet<Pixel> visited = new HashSet<Pixel>();
+		HashSet<Pixel> total = new HashSet<Pixel>();
+		Stack<Pixel> stack = new Stack<Pixel>();
+		stack.Push(p);
+		visited.Add(p);
+		total.Add(p);
 
+
+		while (stack.Count > 0)
+		{
+			Pixel current = stack.Pop();
+			foreach (Pixel neighbor in current.boundary)
+			{
+				if (neighbor.district == p.district && !visited.Contains(neighbor))
+				{
+					visited.Add(neighbor);
+					if (init.boundary.Contains(neighbor))
+					{
+						stack.Push(neighbor);
+						total.Add(neighbor);
+
+					}
+				}
+			}
+		}
+		return total.Count;
+	}
+	public float CalculateScore(){
+		return ScoreCount();
+	}
 	public void Update()
 	{
-		float initScore = ScoreCOM();
+		GD.Print(districtCounts[0]);
+		float initScore = CalculateScore();
 		// GD.Print("InitScore: " + initScore);
 		Pixel[] boundary = findBoundary().ToArray();
-		Pixel p = boundary[GD.RandRange(0, boundary.Length - 1)];
-		int initalDistrict = p.district;
-		p.district = p.boundDistrict;
-		float final = ScoreCOM();
-		if (final >= initScore)
+		while (true)
 		{
-			if (GD.Randf() > rand)
+			bool broken = false;
+
+
+			Pixel p = boundary[GD.RandRange(0, boundary.Length - 1)];
+			int initalDistrict = p.district;
+			ChangeDistrict(p);
+
+			//check if connection is broken and set variable: 
+			Pixel start = null;
+			int count = 0;
+			foreach (Pixel p1 in p.boundary)
 			{
-				p.district = initalDistrict;
-			}
-		}
-		GD.Print(final);
-	}
-	public float ScoreSize(){
-		float[] count = new float[pts];
-		foreach (Pixel p in pixels){
-			count[p.district]++;
-		}
-		float biggest = float.MinValue;
-		float smallest = float.MaxValue;
-		foreach (float c in count){
-			if (c > biggest){
-				biggest = c;
-			}
-			else if (c < smallest) { 
-				smallest = c;
-			}
-		}
-		return biggest - smallest;
-	}
-	public float ScoreCOM()
-	{
-		float score = 0;
-
-		
-		float[] sumX = new float[pts];
-		float[] sumY = new float[pts];
-		int[] count = new int[pts];
-
-		
-		foreach (var pixel in pixels)
-		{
-			int district = pixel.district;
-			sumX[district] += pixel.pos.X;
-			sumY[district] += pixel.pos.Y;
-			count[district]++;
-		}
-
-		
-		Parallel.For(0, pts, district =>
-		{
-			if (count[district] == 0) return;  // Skip empty districts
-
-			
-			Vector2 com = new Vector2(sumX[district] / count[district], sumY[district] / count[district]);
-
-			float districtSum = 0;
-			foreach (var pixel in pixels)
-			{
-				if (pixel.district == district)
+				if (p1.district == initalDistrict)
 				{
-					districtSum += com.DistanceTo(pixel.pos);
+					count++;
+					start = p1;
+				}
+			}
+			if (start != null)
+			{
+				if (DFS(start, p) < count)
+				{
+					broken = true;
 				}
 			}
 
-			
-			lock (this)
+			if (!broken)
 			{
-				score += districtSum / count[district];
+				float final = CalculateScore();
+				if (final >= initScore)
+				{
+					if (GD.Randf() > rand)
+					{
+						RevertDistrict(p, initalDistrict);
+					}
+					else
+					{
+						GD.Print(final);
+						break;
+					}
+				}
+				else
+				{
+					GD.Print(final);
+					break;
+				}
 			}
-		});
-
+			else
+			{
+				RevertDistrict(p, initalDistrict);
+			}
+		}
+		// GD.Print(final);
+	}
+	public float ScoreBorder(){
+		float score = 0;
+		foreach(Pixel p in pixels){
+			foreach (Pixel p1 in p.boundary){
+				if (p1.district != p.district){
+					score += 1;
+				}
+			}
+		}
 		return score;
-
 	}
 	public void Render()
 	{
@@ -173,6 +224,22 @@ public partial class Renderer : Sprite2D
 
 		texture.SetImage(image);
 		Texture = texture;
+	}
+	public void UpdateCounts(){
+		foreach (Pixel p in pixels){
+			districtCounts[p.district]++;
+		}
+		GD.Print(districtCounts);
+	}
+	public void ChangeDistrict(Pixel p){
+		districtCounts[p.district]--;
+		p.district = p.boundDistrict;
+		districtCounts[p.district]++;
+	}
+	public void RevertDistrict(Pixel p, int district){
+		districtCounts[p.district]--;
+		districtCounts[district]++;
+		p.district=district;
 	}
 	public List<Pixel> findBoundary()
 	{

@@ -10,6 +10,7 @@ public partial class Pixel
 	public int pop;
 	public int district;
 	public int boundDistrict;
+	public List<Pixel> boundaryNoDiagonal = new List<Pixel>();
 	public List<Pixel> boundary = new List<Pixel>();
 
 	public Pixel(Vector2I pos, float voterProp, int pop, int district){
